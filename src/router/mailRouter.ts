@@ -2,7 +2,8 @@ import Router from "koa-router";
 import { Context } from "koa";
 import MailBox from "../Email/imap";
 import { mailAddress } from "../interfaces/MailAddressInterface";
-import { loadData, saveData } from "../misc/SaveLoadHandler";
+import { getKey, authData, saveData, setKey } from "../misc/SaveLoadHandler";
+import { Md5 } from "ts-md5";
 
 const router = new Router();
 
@@ -36,6 +37,31 @@ router.post('/mailAuth', async (ctx: Context) => {
 	}
 });
 
+router.post('/key', async (ctx: Context) => {
+	if (getKey() !== '') {
+		if (getKey() === Md5.hashStr(ctx.request.body.key)) {
+			ctx.body = {
+				result: "success"
+			}
+		} else {
+			ctx.body = {
+				result: "wrong key"
+			}
+		}
+	} else {
+		try {
+			await setKey(ctx.request.body.key)
+			ctx.body = {
+				result: "success"
+			}
+		} catch (error) {
+			ctx.body = {
+				result: "wrong key"
+			}
+		}
+	}
+})
+
 router.post('/loadMails', async (ctx: Context) => {
 	if (addressList[await ctx.request.body.index].areAllMailsLoaded()) {
 		ctx.body = "finished";
@@ -53,7 +79,7 @@ router.post('/refreshMails', async (ctx: Context) => {
 router.post('/checkAuth', async (ctx: Context) => {
 	const mailAdresses: mailAddress[] = [];
 	if (!addressList.length) {
-		const loadedData = await loadData();
+		const loadedData = authData();
 		addressList = await Promise.all(loadedData.map(async (authData) => {
 			const mailAddress = new MailBox(authData);
 			await mailAddress.receiveMails();
